@@ -1,0 +1,9 @@
+#create environment
+#python -m venv env
+
+#activate the environment
+#.\env\Scripts\Activate.ps1
+
+# pip install -r requirements.txt
+
+
