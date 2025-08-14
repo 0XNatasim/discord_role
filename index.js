@@ -18,7 +18,6 @@ client.once("ready", () => {
   console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
 });
 
-// Register slash command /verify
 const commands = [
   {
     name: "verify",
@@ -43,7 +42,6 @@ const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
   }
 })();
 
-// ----------- Interaction Handler -----------
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -53,7 +51,7 @@ client.on("interactionCreate", async (interaction) => {
       await interaction.reply({
         content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
         flags: 64, // ephemeral
-    });
+      });
     } catch (err) {
       console.error("Erreur interaction : ", err);
     }
@@ -67,7 +65,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Serve index page
 app.get("/", (req, res) => {
   const { discordId } = req.query;
   if (!discordId) return res.send("❌ Discord ID manquant");
@@ -79,7 +76,6 @@ const provider = new ethers.JsonRpcProvider(
   `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
 );
 
-// Minimal ERC-1155 ABI
 const ERC1155_ABI = [
   "function balanceOf(address account, uint256 id) view returns (uint256)"
 ];
@@ -90,7 +86,6 @@ const ensWrapperContract = new ethers.Contract(
   provider
 );
 
-// ----------- API: Verify Signature + ENS Ownership -----------
 app.post("/api/verify-signature", async (req, res) => {
   try {
     const { discordId, wallet, signature, message } = req.body;
@@ -99,7 +94,6 @@ app.post("/api/verify-signature", async (req, res) => {
       return res.status(400).json({ message: "❌ Paramètres manquants" });
     }
 
-    // 1. Recover signer from signature
     const recovered = ethers.verifyMessage(message, signature);
     console.log("Recovered address:", recovered);
 
@@ -107,7 +101,6 @@ app.post("/api/verify-signature", async (req, res) => {
       return res.status(400).json({ message: "❌ Signature invalide" });
     }
 
-    // 2. Check ENS ERC-1155 ownership
     const tokenId = ethers.toBigInt(process.env.PARENT_NODE);
     const balance = await ensWrapperContract.balanceOf(wallet, tokenId);
 
@@ -119,7 +112,6 @@ app.post("/api/verify-signature", async (req, res) => {
       });
     }
 
-    // 3. Assign Discord role
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
     const member = await guild.members.fetch(discordId);
     await member.roles.add(process.env.MEMBER_ROLE_ID);
@@ -131,6 +123,16 @@ app.post("/api/verify-signature", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 5000, () => {
-  console.log(`🌍 Serveur Web lancé sur le port ${process.env.PORT || 5000}`);
+const port = process.env.PORT || 5000;
+app.listen(port, () => {
+  console.log(`🌍 Serveur Web lancé sur le port ${port}`);
 });
+
+// ----------- Self-Ping to keep Render awake -----------
+if (process.env.BASE_URL) {
+  setInterval(() => {
+    fetch(process.env.BASE_URL)
+      .then(() => console.log("⏳ Self-ping sent to keep service awake"))
+      .catch((err) => console.error("⚠️ Self-ping failed:", err));
+  }, 14 * 60 * 1000); // every 14 minutes
+}
