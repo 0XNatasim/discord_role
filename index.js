@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ----------- Discord Bot Setup -----------
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
 client.once("ready", () => {
   console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
@@ -58,7 +58,9 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+client.login(process.env.DISCORD_TOKEN)
+    .then(() => console.log(`🤖 Bot connecté en tant que ${client.user.tag}`))
+    .catch(err => console.error("❌ Erreur de connexion du bot:", err));
 
 // ----------- Express Server Setup -----------
 const app = express();
