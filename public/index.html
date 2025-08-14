@@ -47,25 +47,6 @@
         text-align: center;
     }
 
-    .card h2 {
-        margin-top: 0;
-        color: #FFEB3B;
-        margin-bottom: 15px;
-    }
-
-    .input-field {
-        width: 80%;
-        padding: 12px;
-        border-radius: 10px;
-        border: 2px solid #ccc;
-        font-size: 1rem;
-        margin-bottom: 15px;
-        text-align: center;
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-    }
-
     .btn {
         display: block;
         width: 80%;
@@ -97,12 +78,6 @@
         background-color: #5E35B1;
     }
 
-    .subdomain-output {
-        margin-top: 10px;
-        font-size: 1rem;
-        color: #fff;
-    }
-
     .verified-subdomains {
         background-color: #3F51B5;
         border-radius: 16px;
@@ -127,7 +102,6 @@
         margin: 20px auto 0 auto;
         display: block;
     }
-
 </style>
 </head>
 <body>
@@ -135,11 +109,9 @@
     <h1>Emperor Club</h1>
     <h2 class="subtitle">[ 👾🗝️👾 ]</h2>
 
-    <div class="card subdomain-verification">
-        <input type="text" id="subdomainClub" class="input-field" placeholder="Enter Your Club Identity">
-        <button class="btn verify" onclick="verifyClubOwnership()">Verify Club Ownership</button>
+    <div class="card">
+        <button id="connectBtn" class="btn verify">Verify Club Ownership</button>
         <button class="btn buy" onclick="window.open('https://0xnatasim.github.io/Emperor_club_registration/', '_blank')">Buy Club Identity</button>
-        <p id="outputClub" class="subdomain-output"></p>
     </div>
 
     <div class="verified-subdomains card">
