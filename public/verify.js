@@ -1,29 +1,18 @@
-const discordId = new URLSearchParams(window.location.search).get("discordId");
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === "verify") {
+    try {
+      const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
+      
+      // Réponse immédiate (évite l'erreur 10062)
+      await interaction.reply({
+        content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
+        flags: 64  // ephemeral message
+      });
 
-document.getElementById("connect").addEventListener("click", async () => {
-  if (!window.ethereum) {
-    document.getElementById("status").innerText = "❌ Installez MetaMask";
-    return;
-  }
-  try {
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    const wallet = accounts[0];
-
-    const signature = await window.ethereum.request({
-      method: "personal_sign",
-      params: [`Vérification pour Discord ID: ${discordId}`, wallet]
-    });
-
-    // Envoyer au backend
-    const res = await fetch("/api/verify-wallet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ discordId, walletAddress: wallet })
-    });
-    const data = await res.json();
-    document.getElementById("status").innerText = data.message;
-  } catch (err) {
-    document.getElementById("status").innerText = "❌ Erreur lors de la connexion.";
-    console.error(err);
+      // Tout traitement long se fait après dans la page web / serveur
+    } catch (err) {
+      console.error("Erreur interaction : ", err);
+    }
   }
 });
