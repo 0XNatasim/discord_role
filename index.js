@@ -28,7 +28,10 @@ async function registerCommands() {
 
   try {
     console.log('📡 Registering /verify command...');
-    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands }
+    );
     console.log('✅ /verify command registered');
   } catch (error) {
     console.error('❌ Error registering commands:', error);
@@ -43,16 +46,34 @@ client.once('ready', () => {
 // Interaction handler
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
+
   if (interaction.commandName === 'verify') {
     try {
-      // Prevent "Unknown interaction" by deferring immediately
-      await interaction.deferReply({ ephemeral: true });
+      // Step 1 — Defer reply (ephemeral)
+      await interaction.deferReply({ flags: 64 });
 
+      // Step 2 — Prepare verification link
       const verifyUrl = `${BASE_URL}/?discordId=${interaction.user.id}`;
+
+      // OPTIONAL: Future API call example
+      // const apiResponse = await fetch(`${BASE_URL}/api/check?discordId=${interaction.user.id}`);
+      // const result = await apiResponse.json();
+
+      // Step 3 — Edit reply with the actual link
       await interaction.editReply(`Click here to verify: ${verifyUrl}`);
 
     } catch (err) {
       console.error('❌ Error during interaction:', err);
+
+      // If something goes wrong, try to edit reply with an error message
+      if (interaction.deferred) {
+        await interaction.editReply('❌ An error occurred while processing your verification.');
+      } else if (!interaction.replied) {
+        await interaction.reply({
+          content: '❌ An error occurred while processing your verification.',
+          flags: 64
+        });
+      }
     }
   }
 });
