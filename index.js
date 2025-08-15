@@ -1,86 +1,102 @@
-import 'dotenv/config';
-import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
-import fetch from 'node-fetch';
+require("dotenv").config();
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require("discord.js");
+const express = require("express");
+const bodyParser = require("body-parser");
+const path = require("path");
+const { ethers } = require("ethers");
 
 const {
   DISCORD_TOKEN,
   CLIENT_ID,
   GUILD_ID,
+  MEMBER_ROLE_ID,
   BASE_URL,
-  MEMBER_ROLE_ID
+  PORT,
+  ALCHEMY_KEY,
+  ENS_WRAPPER_NFT_CONTRACT,
+  PARENT_NODE
 } = process.env;
 
-// Initialize Discord client
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
-});
+// ----------------- DISCORD BOT -----------------
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] });
 
-// Register /verify command
-const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+const commands = [
+  new SlashCommandBuilder()
+    .setName("verify")
+    .setDescription("Verify ENS subdomain ownership under emperor.club.agi.eth")
+].map(cmd => cmd.toJSON());
 
-async function registerCommands() {
-  const commands = [
-    {
-      name: 'verify',
-      description: 'Verify your ENS ownership'
-    }
-  ];
+const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
 
-  try {
-    console.log('📡 Registering /verify command...');
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: commands }
-    );
-    console.log('✅ /verify command registered');
-  } catch (error) {
-    console.error('❌ Error registering commands:', error);
-  }
-}
-
-// On ready
-client.once('ready', () => {
-  console.log(`✅ Bot connected as ${client.user.tag}`);
-});
-
-// Interaction handler
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === 'verify') {
-    try {
-      // Step 1 — Defer reply (ephemeral)
-      await interaction.deferReply({ flags: 64 });
-
-      // Step 2 — Prepare verification link
-      const verifyUrl = `${BASE_URL}/?discordId=${interaction.user.id}`;
-
-      // OPTIONAL: Future API call example
-      // const apiResponse = await fetch(`${BASE_URL}/api/check?discordId=${interaction.user.id}`);
-      // const result = await apiResponse.json();
-
-      // Step 3 — Edit reply with the actual link
-      await interaction.editReply(`Click here to verify: ${verifyUrl}`);
-
-    } catch (err) {
-      console.error('❌ Error during interaction:', err);
-
-      // If something goes wrong, try to edit reply with an error message
-      if (interaction.deferred) {
-        await interaction.editReply('❌ An error occurred while processing your verification.');
-      } else if (!interaction.replied) {
-        await interaction.reply({
-          content: '❌ An error occurred while processing your verification.',
-          flags: 64
-        });
-      }
-    }
-  }
-});
-
-// Start bot
 (async () => {
-  console.log('🔍 Starting app...');
-  await registerCommands();
-  await client.login(DISCORD_TOKEN);
+  try {
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+    console.log("✅ Slash command /verify registered");
+  } catch (err) {
+    console.error("❌ Error registering commands:", err);
+  }
 })();
+
+client.on("ready", () => {
+  console.log(`🤖 Logged in as ${client.user.tag}`);
+});
+
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.commandName === "verify") {
+    const verifyUrl = `${BASE_URL}/?discordId=${interaction.user.id}`;
+    await interaction.reply({
+      content: `Click to verify ENS subdomain ownership: ${verifyUrl}`,
+      ephemeral: true
+    });
+  }
+});
+
+client.login(DISCORD_TOKEN);
+
+// ----------------- EXPRESS SERVER -----------------
+const app = express();
+app.use(bodyParser.json());
+
+// Serve static frontend (public/)
+app.use(express.static(path.join(__dirname, "public")));
+
+const provider = new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`);
+const ensWrapper = new ethers.Contract(
+  ENS_WRAPPER_NFT_CONTRACT,
+  ["function balanceOf(address owner, uint256 id) view returns (uint256)"],
+  provider
+);
+
+// API route for verifying ENS NFT ownership
+app.post("/api/verify", async (req, res) => {
+  try {
+    const { discordId, wallet, subnodeHex, signature } = req.body;
+
+    // Verify signed message
+    const recovered = ethers.verifyMessage(`Verify ENS subdomain for ${discordId}`, signature);
+    if (recovered.toLowerCase() !== wallet.toLowerCase()) {
+      return res.status(400).json({ error: "Invalid signature" });
+    }
+
+    // Check ENS wrapper NFT ownership
+    const balance = await ensWrapper.balanceOf(wallet, subnodeHex);
+    if (balance > 0n) {
+      // Assign role on Discord
+      const guild = await client.guilds.fetch(GUILD_ID);
+      const member = await guild.members.fetch(discordId);
+      await member.roles.add(MEMBER_ROLE_ID);
+
+      return res.json({ success: true, message: "ENS ownership verified, role granted!" });
+    } else {
+      return res.status(403).json({ error: "No ENS subdomain NFT found." });
+    }
+  } catch (err) {
+    console.error("Verification error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.listen(PORT || 5000, () => {
+  console.log(`🌐 Server running at ${BASE_URL}`);
+});
