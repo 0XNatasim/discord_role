@@ -4,10 +4,116 @@
   <meta charset="UTF-8">
   <title>ENS Club Verification</title>
 </head>
+
+
+<style>
+    body {
+        font-family: 'Montserrat', sans-serif;
+        background: linear-gradient(35deg, #FFC107, #0D47A1);
+        color: #fff;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+    }
+
+    .container {
+        width: 90%;
+        max-width: 600px;
+        padding: 20px;
+    }
+
+    h1 {
+        text-align: center;
+        color: #FFEB3B;
+        font-size: 2.5rem;
+        margin-bottom: 5px;
+    }
+
+    h2.subtitle {
+        text-align: center;
+        color: #FFEB3B;
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+    }
+
+    .card {
+        background-color: #4A148C;
+        border-radius: 16px;
+        padding: 30px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        text-align: center;
+    }
+
+    .btn {
+        display: block;
+        width: 80%;
+        margin: 10px auto;
+        padding: 12px;
+        font-size: 1rem;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+    }
+
+    .btn.verify {
+        background-color: #673AB7;
+        color: #fff;
+    }
+
+    .btn.verify:hover {
+        background-color: #5E35B1;
+    }
+
+    .btn.buy {
+        background-color: #673AB7;
+        color: #fff;
+    }
+
+    .btn.buy:hover {
+        background-color: #5E35B1;
+    }
+
+    .verified-subdomains {
+        background-color: #3F51B5;
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+    }
+
+    .verified-subdomains ul {
+        list-style: none;
+        padding: 0;
+        color: #fff;
+        font-size: 1rem;
+    }
+
+    .verified-subdomains ul li {
+        margin: 5px 0;
+    }
+
+    .nft-image {
+        max-width: 300px;
+        margin: 20px auto 0 auto;
+        display: block;
+    }
+</style>
+</head>
+
 <body>
   <h1>Connectez votre wallet pour vérifier</h1>
   <button id="connectBtn">Connect Wallet</button>
 
   <script src="./verify.js"></script>
 </body>
+
+
+
+
 </html>
