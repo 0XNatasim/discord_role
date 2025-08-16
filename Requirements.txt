@@ -1,9 +1,3 @@
-#create environment
-#python -m venv env
 
-#activate the environment
-#.\env\Scripts\Activate.ps1
-
-# pip install -r requirements.txt
-
-
+# This project is implemented in Node.js. There are no Python dependencies.
+# Create this file to satisfy hosting platforms that expect a requirements.txt.

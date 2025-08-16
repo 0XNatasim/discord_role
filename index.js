@@ -1,144 +1,109 @@
-import express from "express";
-import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
-import dotenv from "dotenv";
-import path from "path";
-import { fileURLToPath } from "url";
-import { ethers } from "ethers";
-import fetch from "node-fetch";
+/*
+ * Discord bot for ENS subdomain verification
+ *
+ * This script registers a single slash command (/verify) with Discord and responds
+ * with a private link to the verification page when invoked. The link points
+ * at your hosted backend (for example on Render) where users can connect
+ * their wallet and complete the verification flow.
+ *
+ * Environment variables (see README or your hosting platform for configuration):
+ *  - DISCORD_TOKEN:       Bot token from the Discord developer portal
+ *  - CLIENT_ID:           Application (client) ID for the bot
+ *  - GUILD_ID:            ID of the Discord guild (server) where the command
+ *                          should be registered
+ *  - BASE_URL:            Base URL of the backend (e.g. https://your-app.onrender.com)
+ *
+ * Note: In production you should avoid logging or committing your bot token or
+ * other secrets. Always load secrets from your environment.
+ */
 
-dotenv.config();
+require('dotenv').config();
+const { Client, GatewayIntentBits, REST, Routes, SlashCommandBuilder } = require('discord.js');
+// Import the Express app factory from verify.js so we can run the web server
+const { createServer } = require('./verify');
 
-// Fix __dirname for ES modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Load required environment variables and perform basic sanity checks
+const {
+  DISCORD_TOKEN,
+  CLIENT_ID,
+  GUILD_ID,
+  BASE_URL,
+  MEMBER_ROLE_ID,
+} = process.env;
 
-// ----------- Discord Bot Setup -----------
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+if (!DISCORD_TOKEN || !CLIENT_ID || !GUILD_ID || !BASE_URL) {
+  console.error('Missing one or more required environment variables: DISCORD_TOKEN, CLIENT_ID, GUILD_ID, BASE_URL');
+  process.exit(1);
+}
+
+// Instantiate Discord client with minimal intents (we only need guilds for slash commands)
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+
+// Create and start the Express server. This allows the bot and web server to
+// run within the same process, which is ideal for free hosting tiers. We
+// pass the Discord client and role settings so the server can grant roles on
+// successful verification.
+const app = createServer({
+  discordClient: client,
+  guildId: GUILD_ID,
+  memberRoleId: MEMBER_ROLE_ID,
 });
-
-client.once("ready", () => {
-  console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
-});
-
-// Register /verify command
-const commands = [
-  { name: "verify", description: "Vérifiez votre wallet ENS pour obtenir le rôle Club" },
-];
-
-const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-
-(async () => {
-  try {
-    await rest.put(
-      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
-      { body: commands }
-    );
-    console.log("✅ Commande /verify enregistrée");
-  } catch (err) {
-    console.error(err);
-  }
-})();
-
-// Handle /verify interaction
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === "verify") {
-    try {
-      if (interaction.replied || interaction.deferred) return;
-
-      // 1️⃣ Defer reply immediately to avoid timeout
-      await interaction.deferReply({ ephemeral: true });
-
-      // 2️⃣ Build verification link
-      const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
-
-      // 3️⃣ Send ephemeral link
-      await interaction.reply({ content: "Hello", flags: 64 });
-
-      // 4️⃣ ENS verification happens asynchronously when user signs via MetaMask
-    } catch (err) {
-      console.error("Erreur interaction :", err);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "❌ Une erreur est survenue", flags: 64 });
-      }
-    }
-  }
-});
-
-client
-  .login(process.env.DISCORD_TOKEN)
-  .then(() => console.log(`🤖 Bot connecté en tant que ${client.user.tag}`))
-  .catch((err) => console.error("❌ Erreur de connexion du bot:", err));
-
-// ----------- Express Server Setup -----------
-const app = express();
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-app.get("/", (req, res) => {
-  const { discordId } = req.query;
-  if (!discordId) return res.send("❌ Discord ID manquant");
-  res.sendFile(path.join(__dirname, "public/index.html"));
-});
-
-// ----------- ENS Subdomain Verification with Alchemy -----------
-app.post("/api/verify-signature", async (req, res) => {
-  try {
-    const { discordId, wallet, signature, message } = req.body;
-
-    if (!discordId || !wallet || !signature || !message) {
-      return res.status(400).json({ message: "❌ Paramètres manquants" });
-    }
-
-    // 1️⃣ Verify wallet signature
-    const recovered = ethers.verifyMessage(message, signature);
-    if (recovered.toLowerCase() !== wallet.toLowerCase()) {
-      return res.status(400).json({ message: "❌ Signature invalide" });
-    }
-
-    // 2️⃣ Fetch wallet NFTs from Alchemy
-    const url = `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_KEY}/getNFTs/` +
-                `?owner=${wallet}&contractAddresses[]=${process.env.ENS_WRAPPER_NFT_CONTRACT}`;
-
-    const nftRes = await fetch(url);
-    const nftData = await nftRes.json();
-
-    if (!nftData.ownedNfts || nftData.ownedNfts.length === 0) {
-      return res.status(403).json({ message: "❌ Aucun NFT ENS trouvé" });
-    }
-
-    // 3️⃣ Check if any NFT is a subdomain of parent
-    const parentLabel = process.env.PARENT_LABEL?.toLowerCase(); // e.g., "emperor.club.agi.eth"
-    const ownsSubname = nftData.ownedNfts.some(nft => nft.title?.toLowerCase().endsWith(`.${parentLabel}`));
-
-    if (!ownsSubname) {
-      return res.status(403).json({ message: "❌ Ce wallet ne possède pas de sous-domaine ENS valide" });
-    }
-
-    // 4️⃣ Add Discord role
-    const guild = await client.guilds.fetch(process.env.GUILD_ID);
-    const member = await guild.members.fetch(discordId);
-    await member.roles.add(process.env.MEMBER_ROLE_ID);
-
-    return res.json({ message: "✅ Vérification réussie, rôle attribué" });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Erreur serveur" });
-  }
-});
-
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
-  console.log(`🌍 Serveur Web lancé sur le port ${port}`);
+  console.log(`Express server listening on port ${port}`);
 });
 
-// ----------- Self-Ping to keep Render awake -----------
-if (process.env.BASE_URL) {
-  setInterval(() => {
-    fetch(process.env.BASE_URL)
-      .then(() => console.log("⏳ Self-ping sent to keep service awake"))
-      .catch((err) => console.error("⚠️ Self-ping failed:", err));
-  }, 14 * 60 * 1000); // every 14 minutes
+// Define the slash command(s) to register
+const commands = [
+  new SlashCommandBuilder()
+    .setName('verify')
+    .setDescription('Start the ENS subdomain verification process')
+    .toJSON(),
+];
+
+// Register slash commands on the guild whenever the bot starts
+async function registerCommands() {
+  const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
+  try {
+    console.log('Refreshing slash commands...');
+    await rest.put(
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
+      { body: commands },
+    );
+    console.log('Slash commands registered successfully');
+  } catch (error) {
+    console.error('Error registering slash commands:', error);
+  }
 }
+
+client.once('ready', () => {
+  console.log(`Logged in as ${client.user.tag}`);
+});
+
+// Listen for interactions and handle the /verify command
+client.on('interactionCreate', async (interaction) => {
+  try {
+    if (!interaction.isChatInputCommand()) return;
+    if (interaction.commandName === 'verify') {
+      // Build a unique verification URL. You could add query parameters (e.g. the
+      // Discord user ID) so the backend knows which user is requesting verification.
+      const verifyUrl = `${BASE_URL.replace(/\/$/, '')}/verify?user=${interaction.user.id}`;
+      await interaction.reply({
+        content: `Click here to verify your ENS subdomain ownership:\n${verifyUrl}`,
+        // Only the requesting user should see this link
+        // Note: property name is 'ephemeral'
+        ephemeral: true,
+      });
+    }
+  } catch (error) {
+    console.error('Error handling interaction:', error);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply('Something went wrong while processing your request.');
+    } else {
+      await interaction.reply({ content: 'Something went wrong while processing your request.', ephemeral: true });
+    }
+  }
+});
+
+// Start the bot
+registerCommands().then(() => client.login(DISCORD_TOKEN));

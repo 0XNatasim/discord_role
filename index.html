@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ENS Verification</title>
+  <!-- Light styling for demonstration purposes -->
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 480px;
+      margin: 2rem auto;
+      padding: 1rem;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 1rem;
+    }
+    button {
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 4px;
+      background-color: #3772ff;
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 1rem;
+      font-size: 1.1rem;
+    }
+  </style>
+  <!-- Include ethers.js from a CDN for wallet interaction -->
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js" integrity="sha384-6YINX/1FBuubtQgZ3dZKy28QB9TqrM0g8qdqKxwpLCM5rSGqQmzSHIwunZh5sW7L" crossorigin="anonymous"></script>
+</head>
+<body>
+  <h1>Verify Your ENS Subdomain</h1>
+  <p>
+    To verify that you own a subdomain of <strong id="parent-label"></strong>,
+    please connect your wallet and sign a verification message. The system will
+    check your ENS NFTs and confirm ownership.
+  </p>
+  <button id="connectBtn">Connect Wallet</button>
+  <div id="status"></div>
+
+  <script>
+    (function() {
+      const connectBtn = document.getElementById('connectBtn');
+      const statusDiv = document.getElementById('status');
+
+      // Read the parent ENS label from the server via a meta tag or embed in the page
+      // For a simple implementation we hardcode it here; you could also inject
+      // this value server‑side when serving the HTML.
+      const parentLabel = '{{PARENT_LABEL}}';
+      document.getElementById('parent-label').textContent = parentLabel;
+
+      async function connectAndVerify() {
+        // Ensure MetaMask or another injected provider is available
+        if (typeof window.ethereum === 'undefined') {
+          statusDiv.textContent = 'MetaMask (or another Web3 wallet) is not installed. Please install one and try again.';
+          return;
+        }
+        try {
+          // Request accounts
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          const address = accounts[0];
+          statusDiv.textContent = `Connected wallet: ${address}\nRequesting signature...`;
+          // Create a signer and sign a simple message. You could customise the
+          // message to include the Discord user ID from the URL query (if present).
+          const provider = new ethers.providers.Web3Provider(window.ethereum);
+          const signer = provider.getSigner();
+          const msg = `Verify ENS ownership for ${address} at ${new Date().toISOString()}`;
+          await signer.signMessage(msg);
+          statusDiv.textContent = 'Checking ENS NameWrapper NFT ownership...';
+          // Call the backend to validate ownership. Pass along the Discord user
+          // ID from the query string so the server can grant roles on success.
+          const params = new URLSearchParams(window.location.search);
+          const discordUserId = params.get('user');
+          const res = await fetch(`/check/${address}?user=${encodeURIComponent(discordUserId || '')}`);
+          const data = await res.json();
+          if (data && data.valid) {
+            statusDiv.innerHTML = '✅ Success! You own a valid subdomain under <strong>' + parentLabel + '</strong>.';
+          } else {
+            statusDiv.innerHTML = '❌ Not a valid ENS holder for <strong>' + parentLabel + '</strong>.';
+          }
+        } catch (err) {
+          console.error(err);
+          statusDiv.textContent = 'An error occurred during verification. See console for details.';
+        }
+      }
+
+      connectBtn.addEventListener('click', () => {
+        connectAndVerify();
+      });
+    })();
+  </script>
+</body>
+</html>

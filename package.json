@@ -1,25 +1,19 @@
 {
-  "name": "ens-club-verification",
+  "name": "discord-ens-verification-bot",
   "version": "1.0.0",
-  "description": "Discord + ENS subdomain verification bot with web interface",
+  "description": "Discord bot and Express backend to verify ENS NameWrapper subdomains.",
   "main": "index.js",
-  "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node index.js"
   },
+  "author": "",
+  "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.15.3",
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "discord.js": "^14.13.0",
     "dotenv": "^16.4.5",
-    "ethers": "^6.13.2",
-    "express": "^4.19.2",
-    "node-fetch": "^3.3.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.4"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "license": "MIT"
+    "ethers": "^5.7.2",
+    "express": "^4.19.2"
+  }
 }
