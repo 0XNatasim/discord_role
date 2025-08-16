@@ -1,52 +1,48 @@
-// public/verify.js
-
-const connectBtn = document.getElementById("connectBtn");
-
-connectBtn.onclick = async () => {
-  if (!window.ethereum) {
-    return alert("Veuillez installer MetaMask pour continuer.");
-  }
-
+app.post("/api/verify-signature", async (req, res) => {
   try {
-    // 1. Connect wallet
-    const accounts = await window.ethereum.request({
-      method: "eth_requestAccounts",
-    });
-    const wallet = accounts[0];
-    console.log("Wallet connecté :", wallet);
+    const { discordId, wallet, signature, message } = req.body;
 
-    // 2. Get Discord ID from URL
-    const params = new URLSearchParams(window.location.search);
-    const discordId = params.get("discordId");
-    if (!discordId) {
-      return alert("Discord ID manquant dans l'URL");
+    if (!discordId || !wallet || !signature || !message) {
+      return res.status(400).json({ message: "❌ Paramètres manquants" });
     }
 
-    // 3. Create message to sign
-    const message = `Vérification Discord ENS
-Discord ID: ${discordId}
-Wallet: ${wallet}
-Date: ${new Date().toISOString()}`;
+    // Verify signature
+    const recovered = ethers.verifyMessage(message, signature);
+    console.log("Recovered address:", recovered);
+    if (recovered.toLowerCase() !== wallet.toLowerCase()) {
+      return res.status(400).json({ message: "❌ Signature invalide" });
+    }
 
-    // 4. Request signature from MetaMask
-    const signature = await window.ethereum.request({
-      method: "personal_sign",
-      params: [message, wallet],
+    // Get NFTs from Alchemy
+    const url = `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_KEY}/getNFTs/` +
+      `?owner=${wallet}&contractAddresses[]=${process.env.ENS_WRAPPER_NFT_CONTRACT}`;
+
+    const nftRes = await fetch(url);
+    const nftData = await nftRes.json();
+
+    if (!nftData.ownedNfts || nftData.ownedNfts.length === 0) {
+      return res.status(403).json({ message: "❌ Aucun NFT ENS trouvé" });
+    }
+
+    // Check for subdomains under the parent node
+    const parentLabel = process.env.PARENT_LABEL?.toLowerCase(); // e.g., "emperor.club.agi.eth"
+    const ownsSubname = nftData.ownedNfts.some(nft => {
+      return nft.title?.toLowerCase().endsWith(`.${parentLabel}`);
     });
-    console.log("Signature reçue :", signature);
 
-    // 5. Send to server for verification
-    const res = await fetch("/api/verify-signature", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ discordId, wallet, signature, message }),
-    });
+    if (!ownsSubname) {
+      return res.status(403).json({ message: "❌ Ce wallet ne possède pas de sous-domaine ENS valide" });
+    }
 
-    const result = await res.json();
-    alert(result.message);
+    // Add Discord role
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(discordId);
+    await member.roles.add(process.env.MEMBER_ROLE_ID);
+
+    return res.json({ message: "✅ Vérification réussie, rôle attribué" });
 
   } catch (err) {
     console.error(err);
-    alert("Erreur de connexion ou de signature");
+    return res.status(500).json({ message: "Erreur serveur" });
   }
-};
+});
