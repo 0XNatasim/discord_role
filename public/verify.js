@@ -9,6 +9,12 @@ window.onload = () => {
         return;
       }
 
+      const ensName = document.getElementById("ensInput").value.trim();
+      if (!ensName) {
+        statusEl.innerText = "Please enter your ENS subdomain.";
+        return;
+      }
+
       // Request wallet
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -23,6 +29,12 @@ window.onload = () => {
         return;
       }
 
+      // Derive subnode hash from ENS name
+      // ENS subname is the first label (e.g. "natasim")
+      const labels = ensName.split(".");
+      const subname = labels[0];
+      const subnodeHex = ethers.keccak256(ethers.toUtf8Bytes(subname));
+
       // Sign verification message
       const message = `Verify ENS subdomain for ${discordId}`;
       const signature = await signer.signMessage(message);
@@ -34,7 +46,7 @@ window.onload = () => {
         body: JSON.stringify({
           discordId,
           wallet,
-          subnodeHex: "0x58bbf8de4428421b6487b0b03dad5573ef760809f84b6e33c21c487fef6a309d", // Example: franky
+          subnodeHex,
           signature
         })
       });
