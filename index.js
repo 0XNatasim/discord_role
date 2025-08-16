@@ -1,13 +1,12 @@
-require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
-const express = require('express');
-const { Alchemy, Network } = require('alchemy-sdk');
-const { ethers } = require('ethers');
+import dotenv from 'dotenv';
+dotenv.config();
+import { Client, GatewayIntentBits } from 'discord.js';
+import express from 'express';
+import { Alchemy, Network } from 'alchemy-sdk';
+import { ethers } from 'ethers';
 
 const app = express();
 const port = process.env.PORT || 5000;
-app.listen(port, () => console.log(`Running on port ${port}`));
-
 
 // Discord Client Setup
 const discordClient = new Client({
