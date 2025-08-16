@@ -33,10 +33,8 @@ window.onload = () => {
         return;
       }
 
-      // Derive subnode hash (labelhash of the first part of ENS)
-      const labels = ensName.split(".");
-      const subname = labels[0];
-      const subnodeHex = ethers.keccak256(ethers.toUtf8Bytes(subname));
+      // Use full namehash as the ERC-1155 token ID
+      const tokenId = ethers.namehash(ensName);  // returns 0x...
 
       // Sign verification message
       const message = `Verify ENS subdomain for ${discordId}`;
@@ -49,7 +47,7 @@ window.onload = () => {
         body: JSON.stringify({
           discordId,
           wallet,
-          subnodeHex,
+          tokenId,  
           signature
         })
       });

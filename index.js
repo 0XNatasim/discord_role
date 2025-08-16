@@ -72,14 +72,14 @@ const ensWrapper = new ethers.Contract(
 
 app.post("/api/verify", async (req, res) => {
   try {
-    const { discordId, wallet, subnodeHex, signature } = req.body;
+    const { discordId, wallet, tokenId, signature } = req.body;
 
     const recovered = ethers.verifyMessage(`Verify ENS subdomain for ${discordId}`, signature);
     if (recovered.toLowerCase() !== wallet.toLowerCase()) {
       return res.status(400).json({ error: "Invalid signature" });
     }
 
-    const balance = await ensWrapper.balanceOf(wallet, subnodeHex);
+    const balance = await ensWrapper.balanceOf(wallet, tokenId);
     if (balance > 0n) {
       const guild = await client.guilds.fetch(GUILD_ID);
       const member = await guild.members.fetch(discordId);
@@ -98,3 +98,5 @@ app.post("/api/verify", async (req, res) => {
 app.listen(PORT || 5000, () => {
   console.log(`🌐 Server running at ${BASE_URL}`);
 });
+
+console.log("Checking ownership:", wallet, "tokenId:", tokenId, "balance:", balance.toString());
