@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
 import { ethers } from "ethers";
+import fetch from "node-fetch";
 
 dotenv.config();
 
@@ -32,10 +33,7 @@ const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 (async () => {
   try {
     await rest.put(
-      Routes.applicationGuildCommands(
-        process.env.CLIENT_ID,
-        process.env.GUILD_ID
-      ),
+      Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID),
       { body: commands }
     );
     console.log("✅ Commande /verify enregistrée");
@@ -49,11 +47,9 @@ client.on("interactionCreate", async (interaction) => {
 
   if (interaction.commandName === "verify") {
     try {
+      if (interaction.replied || interaction.deferred) return; // avoid duplicates
       const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
-      await interaction.reply({
-        content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
-        flags: 64, // ephemeral
-      });
+      await interaction.reply({ content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`, ephemeral: true });
     } catch (err) {
       console.error("Erreur interaction : ", err);
     }
@@ -62,12 +58,8 @@ client.on("interactionCreate", async (interaction) => {
 
 client
   .login(process.env.DISCORD_TOKEN)
-  .then(() =>
-    console.log(`🤖 Bot connecté en tant que ${client.user.tag}`)
-  )
-  .catch((err) =>
-    console.error("❌ Erreur de connexion du bot:", err)
-  );
+  .then(() => console.log(`🤖 Bot connecté en tant que ${client.user.tag}`))
+  .catch((err) => console.error("❌ Erreur de connexion du bot:", err));
 
 // ----------- Express Server Setup -----------
 const app = express();
@@ -80,21 +72,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public/index.html"));
 });
 
-// ----------- ENS ERC-1155 Contract Setup -----------
-const provider = new ethers.JsonRpcProvider(
-  `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
-);
-
-const ERC1155_ABI = [
-  "function balanceOf(address account, uint256 id) view returns (uint256)",
-];
-
-const ensWrapperContract = new ethers.Contract(
-  process.env.ENS_WRAPPER_NFT_CONTRACT,
-  ERC1155_ABI,
-  provider
-);
-
+// ----------- ENS Subdomain Verification with Alchemy -----------
 app.post("/api/verify-signature", async (req, res) => {
   try {
     const { discordId, wallet, signature, message } = req.body;
@@ -103,23 +81,34 @@ app.post("/api/verify-signature", async (req, res) => {
       return res.status(400).json({ message: "❌ Paramètres manquants" });
     }
 
+    // Verify wallet signature
     const recovered = ethers.verifyMessage(message, signature);
-    console.log("Recovered address:", recovered);
-
     if (recovered.toLowerCase() !== wallet.toLowerCase()) {
       return res.status(400).json({ message: "❌ Signature invalide" });
     }
 
-    const tokenId = ethers.toBigInt(process.env.PARENT_NODE);
-    const balance = await ensWrapperContract.balanceOf(wallet, tokenId);
-    console.log(`Balance ENS Token for ${wallet}:`, balance.toString());
+    // Fetch wallet NFTs from Alchemy
+    const url = `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_KEY}/getNFTs/` +
+                `?owner=${wallet}&contractAddresses[]=${process.env.ENS_WRAPPER_NFT_CONTRACT}`;
 
-    if (balance <= 0n) {
-      return res
-        .status(403)
-        .json({ message: "❌ Ce wallet ne possède pas le NFT ENS requis" });
+    const nftRes = await fetch(url);
+    const nftData = await nftRes.json();
+
+    if (!nftData.ownedNfts || nftData.ownedNfts.length === 0) {
+      return res.status(403).json({ message: "❌ Aucun NFT ENS trouvé" });
     }
 
+    // Check if any NFT is a subdomain of parent
+    const parentLabel = process.env.PARENT_LABEL?.toLowerCase(); // e.g., "emperor.club.agi.eth"
+    const ownsSubname = nftData.ownedNfts.some(nft => {
+      return nft.title?.toLowerCase().endsWith(`.${parentLabel}`);
+    });
+
+    if (!ownsSubname) {
+      return res.status(403).json({ message: "❌ Ce wallet ne possède pas de sous-domaine ENS valide" });
+    }
+
+    // Add Discord role
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
     const member = await guild.members.fetch(discordId);
     await member.roles.add(process.env.MEMBER_ROLE_ID);
@@ -143,4 +132,4 @@ if (process.env.BASE_URL) {
       .then(() => console.log("⏳ Self-ping sent to keep service awake"))
       .catch((err) => console.error("⚠️ Self-ping failed:", err));
   }, 14 * 60 * 1000); // every 14 minutes
-}
+});
