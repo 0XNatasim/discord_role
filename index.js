@@ -1,102 +1,146 @@
-import dotenv from 'dotenv';
-import { Client, GatewayIntentBits, MessageFlags } from 'discord.js';
-import express from 'express';
-import { Alchemy, Network } from 'alchemy-sdk';
-import { ethers } from 'ethers';
+import express from "express";
+import { Client, GatewayIntentBits, REST, Routes } from "discord.js";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+import { ethers } from "ethers";
 
-// Load environment variables
-if (process.env.NODE_ENV !== 'production') {
-  dotenv.config();
-}
+dotenv.config();
 
-const app = express();
-const port = process.env.PORT || 5000;
+// Fix __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Discord Client Setup
-const discordClient = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+// ----------- Discord Bot Setup -----------
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
 });
 
-// Alchemy Setup
-const alchemy = new Alchemy({
-  apiKey: process.env.ALCHEMY_KEY,
-  network: Network.ETH_MAINNET
+client.once("ready", () => {
+  console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
 });
 
-// Express Middleware
-app.use(express.json());
-app.use(express.static('public'));
+const commands = [
+  {
+    name: "verify",
+    description: "Vérifiez votre wallet ENS pour obtenir le rôle Club",
+  },
+];
 
-// Discord Bot Ready
-discordClient.once('ready', () => {
-  console.log(`Logged in as ${discordClient.user.tag}!`);
-});
+const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
-// Slash Command Handling - FIXED
-discordClient.on('interactionCreate', async interaction => {
-  if (!interaction.isCommand()) return;
+(async () => {
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(
+        process.env.CLIENT_ID,
+        process.env.GUILD_ID
+      ),
+      { body: commands }
+    );
+    console.log("✅ Commande /verify enregistrée");
+  } catch (err) {
+    console.error(err);
+  }
+})();
 
-  if (interaction.commandName === 'verify') {
-    const verifyUrl = `${process.env.BASE_URL}/verify?discord_id=${interaction.user.id}`;
-    
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === "verify") {
     try {
-      // Use flags instead of ephemeral property
+      const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
       await interaction.reply({
-        content: `[Click here to verify your NFT ownership](${verifyUrl})`,
-        flags: MessageFlags.Ephemeral
+        content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
+        flags: 64, // ephemeral
       });
-    } catch (error) {
-      console.error('Failed to reply to interaction:', error);
+    } catch (err) {
+      console.error("Erreur interaction : ", err);
     }
   }
 });
 
-// Verification Endpoint
-app.post('/verify', async (req, res) => {
-  const { discordId, address, signature } = req.body;
-  
+client
+  .login(process.env.DISCORD_TOKEN)
+  .then(() =>
+    console.log(`🤖 Bot connecté en tant que ${client.user.tag}`)
+  )
+  .catch((err) =>
+    console.error("❌ Erreur de connexion du bot:", err)
+  );
+
+// ----------- Express Server Setup -----------
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/", (req, res) => {
+  const { discordId } = req.query;
+  if (!discordId) return res.send("❌ Discord ID manquant");
+  res.sendFile(path.join(__dirname, "public/index.html"));
+});
+
+// ----------- ENS ERC-1155 Contract Setup -----------
+const provider = new ethers.JsonRpcProvider(
+  `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
+);
+
+const ERC1155_ABI = [
+  "function balanceOf(address account, uint256 id) view returns (uint256)",
+];
+
+const ensWrapperContract = new ethers.Contract(
+  process.env.ENS_WRAPPER_NFT_CONTRACT,
+  ERC1155_ABI,
+  provider
+);
+
+app.post("/api/verify-signature", async (req, res) => {
   try {
-    // 1. Verify signature
-    const message = `Verify Discord ID: ${discordId}`;
-    const signer = ethers.verifyMessage(message, signature);
-    if (signer.toLowerCase() !== address.toLowerCase()) {
-      return res.status(400).json({ error: 'Invalid signature' });
+    const { discordId, wallet, signature, message } = req.body;
+
+    if (!discordId || !wallet || !signature || !message) {
+      return res.status(400).json({ message: "❌ Paramètres manquants" });
     }
 
-    // 2. Check NFT ownership
-    const contractAddress = process.env.ENS_WRAPPER_NFT_CONTRACT;
-    const parentNode = process.env.PARENT_NODE;
-    
-    const nfts = await alchemy.nft.getNftsForOwner(address, {
-      contractAddresses: [contractAddress]
-    });
+    const recovered = ethers.verifyMessage(message, signature);
+    console.log("Recovered address:", recovered);
 
-    const hasValidNFT = nfts.ownedNfts.some(nft => {
-      return nft.rawMetadata?.properties?.parentNode === parentNode;
-    });
-
-    if (!hasValidNFT) {
-      return res.status(403).json({ error: 'NFT ownership validation failed' });
+    if (recovered.toLowerCase() !== wallet.toLowerCase()) {
+      return res.status(400).json({ message: "❌ Signature invalide" });
     }
 
-    // 3. Assign Discord role
-    const guild = await discordClient.guilds.fetch(process.env.GUILD_ID);
+    const tokenId = ethers.toBigInt(process.env.PARENT_NODE);
+    const balance = await ensWrapperContract.balanceOf(wallet, tokenId);
+    console.log(`Balance ENS Token for ${wallet}:`, balance.toString());
+
+    if (balance <= 0n) {
+      return res
+        .status(403)
+        .json({ message: "❌ Ce wallet ne possède pas le NFT ENS requis" });
+    }
+
+    const guild = await client.guilds.fetch(process.env.GUILD_ID);
     const member = await guild.members.fetch(discordId);
     await member.roles.add(process.env.MEMBER_ROLE_ID);
 
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Verification error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.json({ message: "✅ Vérification réussie, rôle attribué" });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Erreur serveur" });
   }
 });
 
-// Start Services
-discordClient.login(process.env.DISCORD_TOKEN);
+const port = process.env.PORT || 5000;
 app.listen(port, () => {
-  console.log(`Server running at ${process.env.BASE_URL}`);
+  console.log(`🌍 Serveur Web lancé sur le port ${port}`);
 });
+
+// ----------- Self-Ping to keep Render awake -----------
+if (process.env.BASE_URL) {
+  setInterval(() => {
+    fetch(process.env.BASE_URL)
+      .then(() => console.log("⏳ Self-ping sent to keep service awake"))
+      .catch((err) => console.error("⚠️ Self-ping failed:", err));
+  }, 14 * 60 * 1000); // every 14 minutes
+}

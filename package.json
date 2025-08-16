@@ -10,7 +10,8 @@
     "dev": "NODE_ENV=development node index.js"
   },
   "dependencies": {
-    "alchemy-sdk": "^2.28.1",
+    "alchemy-sdk": "latest",
+    "cors": "^2.8.5",
     "discord.js": "^14.15.3",
     "ethers": "^6.11.1",
     "express": "^4.19.2"
