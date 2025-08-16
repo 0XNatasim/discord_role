@@ -49,7 +49,10 @@ client.on("interactionCreate", async (interaction) => {
     try {
       if (interaction.replied || interaction.deferred) return; // avoid duplicates
       const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
-      await interaction.reply({ content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`, ephemeral: true });
+      await interaction.reply({
+        content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
+        flags: 64 // ephemeral
+      });
     } catch (err) {
       console.error("Erreur interaction : ", err);
     }
