@@ -21,11 +21,9 @@ client.once("ready", () => {
   console.log(`🤖 Bot connecté en tant que ${client.user.tag}`);
 });
 
+// Register /verify command
 const commands = [
-  {
-    name: "verify",
-    description: "Vérifiez votre wallet ENS pour obtenir le rôle Club",
-  },
+  { name: "verify", description: "Vérifiez votre wallet ENS pour obtenir le rôle Club" },
 ];
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
@@ -42,19 +40,29 @@ const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
   }
 })();
 
+// Handle /verify interaction
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "verify") {
     try {
-      if (interaction.replied || interaction.deferred) return; // avoid duplicates
+      if (interaction.replied || interaction.deferred) return;
+
+      // 1️⃣ Defer reply immediately to avoid timeout
+      await interaction.deferReply({ ephemeral: true });
+
+      // 2️⃣ Build verification link
       const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
-      await interaction.reply({
-        content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
-        flags: 64 // ephemeral
-      });
+
+      // 3️⃣ Send ephemeral link
+      await interaction.editReply(`🔗 Cliquez ici pour vérifier votre ENS : ${link}`);
+
+      // 4️⃣ ENS verification happens asynchronously when user signs via MetaMask
     } catch (err) {
-      console.error("Erreur interaction : ", err);
+      console.error("Erreur interaction :", err);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: "❌ Une erreur est survenue", flags: 64 });
+      }
     }
   }
 });
@@ -84,13 +92,13 @@ app.post("/api/verify-signature", async (req, res) => {
       return res.status(400).json({ message: "❌ Paramètres manquants" });
     }
 
-    // Verify wallet signature
+    // 1️⃣ Verify wallet signature
     const recovered = ethers.verifyMessage(message, signature);
     if (recovered.toLowerCase() !== wallet.toLowerCase()) {
       return res.status(400).json({ message: "❌ Signature invalide" });
     }
 
-    // Fetch wallet NFTs from Alchemy
+    // 2️⃣ Fetch wallet NFTs from Alchemy
     const url = `https://eth-mainnet.g.alchemy.com/nft/v2/${process.env.ALCHEMY_KEY}/getNFTs/` +
                 `?owner=${wallet}&contractAddresses[]=${process.env.ENS_WRAPPER_NFT_CONTRACT}`;
 
@@ -101,17 +109,15 @@ app.post("/api/verify-signature", async (req, res) => {
       return res.status(403).json({ message: "❌ Aucun NFT ENS trouvé" });
     }
 
-    // Check if any NFT is a subdomain of parent
+    // 3️⃣ Check if any NFT is a subdomain of parent
     const parentLabel = process.env.PARENT_LABEL?.toLowerCase(); // e.g., "emperor.club.agi.eth"
-    const ownsSubname = nftData.ownedNfts.some(nft => {
-      return nft.title?.toLowerCase().endsWith(`.${parentLabel}`);
-    });
+    const ownsSubname = nftData.ownedNfts.some(nft => nft.title?.toLowerCase().endsWith(`.${parentLabel}`));
 
     if (!ownsSubname) {
       return res.status(403).json({ message: "❌ Ce wallet ne possède pas de sous-domaine ENS valide" });
     }
 
-    // Add Discord role
+    // 4️⃣ Add Discord role
     const guild = await client.guilds.fetch(process.env.GUILD_ID);
     const member = await guild.members.fetch(discordId);
     await member.roles.add(process.env.MEMBER_ROLE_ID);
@@ -135,4 +141,4 @@ if (process.env.BASE_URL) {
       .then(() => console.log("⏳ Self-ping sent to keep service awake"))
       .catch((err) => console.error("⚠️ Self-ping failed:", err));
   }, 14 * 60 * 1000); // every 14 minutes
-};
+}
