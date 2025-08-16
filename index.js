@@ -1,9 +1,13 @@
 import dotenv from 'dotenv';
-dotenv.config();
-import { Client, GatewayIntentBits } from 'discord.js';
+import { Client, GatewayIntentBits, MessageFlags } from 'discord.js';
 import express from 'express';
 import { Alchemy, Network } from 'alchemy-sdk';
 import { ethers } from 'ethers';
+
+// Load environment variables
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -32,16 +36,22 @@ discordClient.once('ready', () => {
   console.log(`Logged in as ${discordClient.user.tag}!`);
 });
 
-// Slash Command Handling
+// Slash Command Handling - FIXED
 discordClient.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
   if (interaction.commandName === 'verify') {
     const verifyUrl = `${process.env.BASE_URL}/verify?discord_id=${interaction.user.id}`;
-    await interaction.reply({
-      content: `[Click here to verify your NFT ownership](${verifyUrl})`,
-      ephemeral: true
-    });
+    
+    try {
+      // Use flags instead of ephemeral property
+      await interaction.reply({
+        content: `[Click here to verify your NFT ownership](${verifyUrl})`,
+        flags: MessageFlags.Ephemeral
+      });
+    } catch (error) {
+      console.error('Failed to reply to interaction:', error);
+    }
   }
 });
 
