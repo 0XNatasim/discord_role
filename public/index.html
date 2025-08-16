@@ -1,14 +1,118 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>ENS Verification</title>
-    <script src="https://cdn.jsdelivr.net/npm/ethers@6.6.0/dist/ethers.min.js"></script>
-    <script src="verify.js"></script>
-  </head>
-  <body>
-    <h2>ENS Subdomain Verification</h2>
-    <button id="connectBtn">Connect & Verify</button>
-    <p id="status"></p>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ENS Club Verification</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Montserrat', sans-serif;
+      background: linear-gradient(135deg, #FFC107, #0D47A1);
+      color: #fff;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      width: 90%;
+      max-width: 500px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #FFEB3B;
+      font-size: 2.5rem;
+      margin-bottom: 0.3rem;
+    }
+
+    h2.subtitle {
+      font-weight: 400;
+      color: #FFEB3B;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background-color: rgba(74, 20, 140, 0.95);
+      border-radius: 16px;
+      padding: 2rem 1.5rem;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    .btn {
+      display: block;
+      width: 100%;
+      margin: 0.8rem auto;
+      padding: 0.9rem;
+      font-size: 1rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.1s ease;
+    }
+
+    .btn:focus {
+      outline: 3px solid #FFEB3B;
+      outline-offset: 2px;
+    }
+
+    .btn.verify {
+      background-color: #673AB7;
+      color: #fff;
+    }
+
+    .btn.verify:hover {
+      background-color: #5E35B1;
+      transform: translateY(-1px);
+    }
+
+    .btn.buy {
+      background-color: #2196F3;
+      color: #fff;
+    }
+
+    .btn.buy:hover {
+      background-color: #1976D2;
+      transform: translateY(-1px);
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 2rem;
+      }
+      h2.subtitle {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Emperor Club</h1>
+    <h2 class="subtitle">[ 👾🗝️👾 ]</h2>
+
+    <div class="card">
+      <!-- Connect Wallet button (must keep ID for verify.js) -->
+      <button id="connectBtn" class="btn verify">🔗 Connect Wallet</button>
+
+      <!-- Buy Identity button -->
+      <button
+        class="btn buy"
+        onclick="window.open('https://0xnatasim.github.io/Emperor_club_registration/', '_blank')">
+        🛒 Buy Club Identity
+      </button>
+    </div>
+  </div>
+
+  <!-- Load JS after DOM -->
+  <script src="./verify.js"></script>
+</body>
 </html>
