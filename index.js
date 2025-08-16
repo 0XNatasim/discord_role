@@ -1,86 +1,93 @@
-import 'dotenv/config';
-import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
-import fetch from 'node-fetch';
+require('dotenv').config();
+const { Client, GatewayIntentBits } = require('discord.js');
+const express = require('express');
+const { Alchemy, Network } = require('alchemy-sdk');
+const { ethers } = require('ethers');
 
-const {
-  DISCORD_TOKEN,
-  CLIENT_ID,
-  GUILD_ID,
-  BASE_URL,
-  MEMBER_ROLE_ID
-} = process.env;
+const app = express();
+const port = process.env.PORT || 5000;
+app.listen(port, () => console.log(`Running on port ${port}`));
 
-// Initialize Discord client
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+
+// Discord Client Setup
+const discordClient = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
-// Register /verify command
-const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
-
-async function registerCommands() {
-  const commands = [
-    {
-      name: 'verify',
-      description: 'Verify your ENS ownership'
-    }
-  ];
-
-  try {
-    console.log('📡 Registering /verify command...');
-    await rest.put(
-      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
-      { body: commands }
-    );
-    console.log('✅ /verify command registered');
-  } catch (error) {
-    console.error('❌ Error registering commands:', error);
-  }
-}
-
-// On ready
-client.once('ready', () => {
-  console.log(`✅ Bot connected as ${client.user.tag}`);
+// Alchemy Setup
+const alchemy = new Alchemy({
+  apiKey: process.env.ALCHEMY_KEY,
+  network: Network.ETH_MAINNET
 });
 
-// Interaction handler
-client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+// Express Middleware
+app.use(express.json());
+app.use(express.static('public'));
+
+// Discord Bot Ready
+discordClient.once('ready', () => {
+  console.log(`Logged in as ${discordClient.user.tag}!`);
+});
+
+// Slash Command Handling
+discordClient.on('interactionCreate', async interaction => {
+  if (!interaction.isCommand()) return;
 
   if (interaction.commandName === 'verify') {
-    try {
-      // Step 1 — Defer reply (ephemeral)
-      await interaction.deferReply({ flags: 64 });
-
-      // Step 2 — Prepare verification link
-      const verifyUrl = `${BASE_URL}/?discordId=${interaction.user.id}`;
-
-      // OPTIONAL: Future API call example
-      // const apiResponse = await fetch(`${BASE_URL}/api/check?discordId=${interaction.user.id}`);
-      // const result = await apiResponse.json();
-
-      // Step 3 — Edit reply with the actual link
-      await interaction.editReply(`Click here to verify: ${verifyUrl}`);
-
-    } catch (err) {
-      console.error('❌ Error during interaction:', err);
-
-      // If something goes wrong, try to edit reply with an error message
-      if (interaction.deferred) {
-        await interaction.editReply('❌ An error occurred while processing your verification.');
-      } else if (!interaction.replied) {
-        await interaction.reply({
-          content: '❌ An error occurred while processing your verification.',
-          flags: 64
-        });
-      }
-    }
+    const verifyUrl = `${process.env.BASE_URL}/verify?discord_id=${interaction.user.id}`;
+    await interaction.reply({
+      content: `[Click here to verify your NFT ownership](${verifyUrl})`,
+      ephemeral: true
+    });
   }
 });
 
-// Start bot
-(async () => {
-  console.log('🔍 Starting app...');
-  await registerCommands();
-  await client.login(DISCORD_TOKEN);
-})();
+// Verification Endpoint
+app.post('/verify', async (req, res) => {
+  const { discordId, address, signature } = req.body;
+  
+  try {
+    // 1. Verify signature
+    const message = `Verify Discord ID: ${discordId}`;
+    const signer = ethers.verifyMessage(message, signature);
+    if (signer.toLowerCase() !== address.toLowerCase()) {
+      return res.status(400).json({ error: 'Invalid signature' });
+    }
+
+    // 2. Check NFT ownership
+    const contractAddress = process.env.ENS_WRAPPER_NFT_CONTRACT;
+    const parentNode = process.env.PARENT_NODE;
+    
+    const nfts = await alchemy.nft.getNftsForOwner(address, {
+      contractAddresses: [contractAddress]
+    });
+
+    const hasValidNFT = nfts.ownedNfts.some(nft => {
+      return nft.rawMetadata?.properties?.parentNode === parentNode;
+    });
+
+    if (!hasValidNFT) {
+      return res.status(403).json({ error: 'NFT ownership validation failed' });
+    }
+
+    // 3. Assign Discord role
+    const guild = await discordClient.guilds.fetch(process.env.GUILD_ID);
+    const member = await guild.members.fetch(discordId);
+    await member.roles.add(process.env.MEMBER_ROLE_ID);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Verification error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Start Services
+discordClient.login(process.env.DISCORD_TOKEN);
+app.listen(port, () => {
+  console.log(`Server running at ${process.env.BASE_URL}`);
+});
