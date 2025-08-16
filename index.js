@@ -132,4 +132,4 @@ if (process.env.BASE_URL) {
       .then(() => console.log("⏳ Self-ping sent to keep service awake"))
       .catch((err) => console.error("⚠️ Self-ping failed:", err));
   }, 14 * 60 * 1000); // every 14 minutes
-});
+};
