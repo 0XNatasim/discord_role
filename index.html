@@ -3,38 +3,85 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ENS Verification</title>
-  <!-- Light styling for demonstration purposes -->
+  <title>Emperor Club – ENS Verification</title>
+  <!-- Custom styling to match the Emperor Club design. The page uses a full‑
+       page gradient background with a centred card containing two large
+       buttons. Colours were chosen to approximate the provided design. -->
   <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
     body {
-      font-family: Arial, sans-serif;
-      max-width: 480px;
-      margin: 2rem auto;
-      padding: 1rem;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      /* Gradient background from golden yellow to blue */
+      background: linear-gradient(135deg, #ffd54f 0%, #3c80e5 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: #fafafa;
+    }
+    .wrapper {
+      width: 100%;
+      max-width: 420px;
+      padding: 0 1.5rem;
     }
     h1 {
-      font-size: 1.4rem;
-      margin-bottom: 1rem;
+      margin: 0;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: #ffd54f;
     }
-    button {
-      padding: 0.6rem 1.2rem;
-      font-size: 1rem;
+    .tagline {
+      margin: 0.5rem 0 1.5rem;
+      font-size: 1.5rem;
+      color: #ffd54f;
+    }
+    .card {
+      background-color: #4a148c; /* deep purple */
+      border-radius: 1rem;
+      padding: 2rem 1.5rem;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .button {
+      display: block;
+      width: 100%;
+      padding: 0.8rem;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border-radius: 0.75rem;
+      text-align: center;
+      text-decoration: none;
       border: none;
-      border-radius: 4px;
-      background-color: #3772ff;
-      color: white;
       cursor: pointer;
+      transition: background-color 0.2s;
     }
-    button:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+    .button-primary {
+      background-color: #7e57c2;
+      color: #ffffff;
+    }
+    .button-primary:hover {
+      background-color: #6a45b2;
+    }
+    .button-secondary {
+      background-color: #9575cd;
+      color: #ffffff;
+    }
+    .button-secondary:hover {
+      background-color: #8361c4;
     }
     #status {
-      margin-top: 1rem;
-      font-size: 1.1rem;
+      margin-top: 1.5rem;
+      font-size: 1rem;
+      color: #212121;
+      background-color: rgba(255, 255, 255, 0.8);
+      border-radius: 0.5rem;
+      padding: 0.5rem 1rem;
     }
   </style>
   <!-- Include ethers.js from a CDN for wallet interaction.  Using a CDNJS link
@@ -42,25 +89,31 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" integrity="sha512-z4/aCglcCxzlvjqdSBfu+0N/dD0w83+z+N1XnSzoh7niRO67fqaYd5tgECVDzUFPDjCyZuIs7zCJBa3RfM+pFg==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
-  <h1>Verify Your ENS Subdomain</h1>
-  <p>
-    To verify that you own a subdomain of <strong id="parent-label"></strong>,
-    please connect your wallet and sign a verification message. The system will
-    check your ENS NFTs and confirm ownership.
-  </p>
-  <button id="connectBtn">Connect Wallet</button>
-  <div id="status"></div>
+  <div class="wrapper">
+    <h1>Emperor Club</h1>
+    <div class="tagline">[ 👑 🔑 👑 ]</div>
+    <!-- Verification card containing action buttons -->
+    <div class="card">
+      <!-- Connect Wallet button triggers the verification process -->
+      <button id="connectBtn" class="button button-primary">Connect Wallet</button>
+      <!-- Buy Club Identity links to the provided registration page. This uses
+           an anchor tag styled like a button. -->
+      <a href="https://0xnatasim.github.io/Emperor_club_registration/" class="button button-secondary" target="_blank" rel="noopener noreferrer">Buy Club Identity</a>
+    </div>
+    <!-- Status messages about connection and verification appear here -->
+    <div id="status"></div>
+  </div>
 
   <script>
     (function() {
       const connectBtn = document.getElementById('connectBtn');
       const statusDiv = document.getElementById('status');
 
-      // Read the parent ENS label from the server via a meta tag or embed in the page
-      // For a simple implementation we hardcode it here; you could also inject
-      // this value server‑side when serving the HTML.
+      // Read the parent ENS label from a template literal injected server‑side.
+      // This value is used in status messages but is not displayed elsewhere
+      // because the tagline is static. The server replaces {{PARENT_LABEL}} with
+      // the actual label before serving this page.
       const parentLabel = '{{PARENT_LABEL}}';
-      document.getElementById('parent-label').textContent = parentLabel;
 
       async function connectAndVerify() {
         // Ensure MetaMask or another injected provider is available
