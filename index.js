@@ -44,11 +44,15 @@ client.on("ready", () => {
 client.on("interactionCreate", async interaction => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName === "verify") {
-    const verifyUrl = `${BASE_URL}/?discordId=${interaction.user.id}`;
-    await interaction.reply({
-      content: `Click to verify ENS subdomain ownership: ${verifyUrl}`,
-      ephemeral: true
-    });
+    try {
+      const verifyUrl = `${BASE_URL}/?discordId=${interaction.user.id}`;
+      await interaction.reply({
+        content: `Click to verify ENS subdomain ownership: ${verifyUrl}`,
+        flags: 64 // 👈 ephemeral reply (only the user sees this)
+      });
+    } catch (err) {
+      console.error("❌ Interaction error:", err);
+    }
   }
 });
 
@@ -57,8 +61,6 @@ client.login(DISCORD_TOKEN);
 // ----------------- EXPRESS SERVER -----------------
 const app = express();
 app.use(bodyParser.json());
-
-// Serve static frontend (public/)
 app.use(express.static(path.join(__dirname, "public")));
 
 const provider = new ethers.JsonRpcProvider(`https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`);
@@ -68,21 +70,17 @@ const ensWrapper = new ethers.Contract(
   provider
 );
 
-// API route for verifying ENS NFT ownership
 app.post("/api/verify", async (req, res) => {
   try {
     const { discordId, wallet, subnodeHex, signature } = req.body;
 
-    // Verify signed message
     const recovered = ethers.verifyMessage(`Verify ENS subdomain for ${discordId}`, signature);
     if (recovered.toLowerCase() !== wallet.toLowerCase()) {
       return res.status(400).json({ error: "Invalid signature" });
     }
 
-    // Check ENS wrapper NFT ownership
     const balance = await ensWrapper.balanceOf(wallet, subnodeHex);
     if (balance > 0n) {
-      // Assign role on Discord
       const guild = await client.guilds.fetch(GUILD_ID);
       const member = await guild.members.fetch(discordId);
       await member.roles.add(MEMBER_ROLE_ID);

@@ -14,6 +14,10 @@ window.onload = () => {
         statusEl.innerText = "Please enter your ENS subdomain.";
         return;
       }
+      if (!ensName.endsWith(".emperor.club.agi.eth")) {
+        statusEl.innerText = "ENS must be a subdomain of emperor.club.agi.eth";
+        return;
+      }
 
       // Request wallet
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -29,8 +33,7 @@ window.onload = () => {
         return;
       }
 
-      // Derive subnode hash from ENS name
-      // ENS subname is the first label (e.g. "natasim")
+      // Derive subnode hash (labelhash of the first part of ENS)
       const labels = ensName.split(".");
       const subname = labels[0];
       const subnodeHex = ethers.keccak256(ethers.toUtf8Bytes(subname));
