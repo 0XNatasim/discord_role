@@ -112,4 +112,11 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // Start the bot
-registerCommands().then(() => client.login(DISCORD_TOKEN));
+// Start the bot. Log any errors during command registration or login for easier debugging.
+registerCommands()
+  .then(() => {
+    return client.login(DISCORD_TOKEN);
+  })
+  .catch((err) => {
+    console.error('Error starting bot:', err);
+  });
