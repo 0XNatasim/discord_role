@@ -145,7 +145,15 @@
           const res = await fetch(`/check/${address}?user=${encodeURIComponent(discordUserId || '')}`);
           const data = await res.json();
           if (data && data.valid) {
-            statusDiv.innerHTML = '✅ Success! You own a valid subdomain under <strong>' + parentLabel + '</strong>.';
+            // Prepare a list of names returned from the backend. If multiple
+            // subdomains are owned, they will be joined with a comma. If no
+            // names are provided, fall back to a generic success message.
+            const namesList = Array.isArray(data.names) && data.names.length > 0 ? data.names.join(', ') : null;
+            if (namesList) {
+              statusDiv.innerHTML = '✅ Success! You own <strong>' + namesList + '</strong> under <strong>' + parentLabel + '</strong>.';
+            } else {
+              statusDiv.innerHTML = '✅ Success! You own a valid subdomain under <strong>' + parentLabel + '</strong>.';
+            }
           } else {
             statusDiv.innerHTML = '❌ Not a valid ENS holder for <strong>' + parentLabel + '</strong>.';
           }

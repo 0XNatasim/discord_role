@@ -61,6 +61,12 @@ const commands = [
     .toJSON(),
 ];
 
+// Define the numeric flag for an "ephemeral" response. Discord uses the
+// 6th bit (value 64) to mark messages as hidden from everyone except the
+// initiating user. We avoid relying on MessageFlags to prevent deprecation
+// warnings or compatibility issues across discord.js versions.
+const EPHEMERAL_FLAG = 1 << 6;
+
 // Register slash commands on the guild whenever the bot starts
 async function registerCommands() {
   const rest = new REST({ version: '10' }).setToken(DISCORD_TOKEN);
@@ -90,9 +96,9 @@ client.on('interactionCreate', async (interaction) => {
       const verifyUrl = `${BASE_URL.replace(/\/$/, '')}/verify?user=${interaction.user.id}`;
       await interaction.reply({
         content: `Click here to verify your ENS subdomain ownership:\n${verifyUrl}`,
-        // Only the requesting user should see this link
-        // Note: property name is 'ephemeral'
-        ephemeral: true,
+        // Only the requesting user should see this link. Use flags to make the
+        // response private (ephemeral) instead of the deprecated "ephemeral" option.
+        flags: EPHEMERAL_FLAG,
       });
     }
   } catch (error) {
@@ -100,7 +106,7 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply('Something went wrong while processing your request.');
     } else {
-      await interaction.reply({ content: 'Something went wrong while processing your request.', ephemeral: true });
+      await interaction.reply({ content: 'Something went wrong while processing your request.', flags: EPHEMERAL_FLAG });
     }
   }
 });

@@ -141,7 +141,12 @@ function isValidSubdomainNft(nft) {
       } else {
         console.log(`Address ${addr} does not own any valid subdomain NFTs.`);
       }
+    // Determine validity and extract human‑readable subdomain names for the matching NFTs.
     const valid = matching.length > 0;
+    const names = matching.map((nft) => {
+      // Prefer the name property, but fall back to title or raw metadata name
+      return nft.name || nft.title || (nft.raw && nft.raw.metadata && nft.raw.metadata.name) || '';
+    });
       // If verification succeeded and we have a Discord client & user ID, attempt to assign the role
       const userId = req.query.user;
       if (valid && discordClient && guildId && memberRoleId && userId) {
@@ -159,7 +164,7 @@ function isValidSubdomainNft(nft) {
           console.error('Failed to assign role:', e);
         }
       }
-      res.json({ valid });
+      res.json({ valid, names });
   } catch (err) {
     console.error('Error querying Alchemy:', err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to verify ENS ownership' });
