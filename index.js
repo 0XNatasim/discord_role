@@ -55,10 +55,7 @@ client.on("interactionCreate", async (interaction) => {
       const link = `${process.env.BASE_URL}/?discordId=${interaction.user.id}`;
 
       // 3️⃣ Send ephemeral link
-      await interaction.reply({
-        content: `🔗 Cliquez ici pour vérifier votre ENS : ${link}`,
-        flags: 64 // ephemeral
-      });
+      await interaction.reply({ content: "Hello", flags: 64 });
 
       // 4️⃣ ENS verification happens asynchronously when user signs via MetaMask
     } catch (err) {
